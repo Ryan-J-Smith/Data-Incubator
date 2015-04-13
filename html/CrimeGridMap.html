@@ -39,8 +39,8 @@ Counts of non-violent crimes are indicated by cell colors varying linearly from 
 Counts of violent crimes are indicated by cell colors varying  linearly from pale orange **(5 to 14 incidents)** to **dark orange (55 or more incidents)**. From this layer we can see that regions with high incidence rates of violent crime are located in 3 primary areas: a small patch in Eastern Baltimore, a more dispersed patch in Western Baltimore and a central patch near the harbor.  The Eastern and Western clusters correspond to areas with comparatively less economic development and typically lower household incomes. The central region corresponds to the downtown / Inner Harbor area which is a popular destination for tourists as well as Baltimore youths during warmer months.
 
 <div id='menu-ui' class="btn-group">
-    <button class="btn-primary" id ="nonviolentBtn">Show Non-Violent Crime</button>
-    <button class="btn-primary" id ="violentBtn">Show Violent Crime</button>
+    <button class="btn-default" id ="nonviolentBtn">Show Non-Violent Crime</button>
+    <button class="btn-default" id ="violentBtn">Show Violent Crime</button>
 </div> 
 <div class="row">
 <div class = "col-md-12">
@@ -202,21 +202,21 @@ The maps were visualized using JavaScript and Mapbox (Leaflet) libraries to gene
 
     nvLayer.addTo(map);
     nvLayer.setZIndex(2);
-    nvBtn.className = 'btn-default';
+    nvBtn.className = 'btn-primary';
     nvBtn.innerHTML = 'Hide Non-Violent Crime'
 
     nvBtn.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
 
-        if (this.className == 'btn-default') {
+        if (this.className == 'btn-primary') {
             map.removeLayer(nvLayer);
-            this.className = 'btn-primary';
+            this.className = 'btn-default';
             this.innerHTML = 'Show Non-Violent Crime'
         } else {
             map.addLayer(nvLayer);
             nvLayer.setZIndex(2);
-            this.className = 'btn-default';
+            this.className = 'btn-primary';
             this.innerHTML = 'Hide Non-Violent Crime'
         }
     };
@@ -225,14 +225,14 @@ The maps were visualized using JavaScript and Mapbox (Leaflet) libraries to gene
         e.preventDefault();
         e.stopPropagation();
 
-        if (this.className == 'btn-default') {
+        if (this.className == 'btn-primary') {
             map.removeLayer(vLayer);
-            this.className = 'btn-primary';
+            this.className = 'btn-default';
             this.innerHTML = 'Show Violent Crime'
         } else {
             map.addLayer(vLayer);
             vLayer.setZIndex(3);
-            this.className = 'btn-default';
+            this.className = 'btn-primary';
             this.innerHTML = 'Hide Violent Crime'
         }
     };
@@ -274,21 +274,21 @@ var vLayer = L.mapbox.tileLayer('ryanjsmith.griddedCrime');
 
 nvLayer.addTo(map);
 nvLayer.setZIndex(2);
-nvBtn.className = 'btn-default';
+nvBtn.className = 'btn-primary';
 nvBtn.innerHTML = 'Hide Non-Violent Crime'
 
 nvBtn.onclick = function(e) {
     e.preventDefault();
     e.stopPropagation();
 
-    if (this.className == 'btn-default') {
+    if (this.className == 'btn-primary') {
         map.removeLayer(nvLayer);
-        this.className = 'btn-primary';
+        this.className = 'btn-default';
         this.innerHTML = 'Show Non-Violent Crime'
     } else {
         map.addLayer(nvLayer);
         nvLayer.setZIndex(2);
-        this.className = 'btn-default';
+        this.className = 'btn-primary';
         this.innerHTML = 'Hide Non-Violent Crime'
     }
 };
@@ -297,14 +297,14 @@ vBtn.onclick = function(e) {
     e.preventDefault();
     e.stopPropagation();
 
-    if (this.className == 'btn-default') {
+    if (this.className == 'btn-primary') {
         map.removeLayer(vLayer);
-        this.className = 'btn-primary';
+        this.className = 'btn-default';
         this.innerHTML = 'Show Violent Crime'
     } else {
         map.addLayer(vLayer);
         vLayer.setZIndex(3);
-        this.className = 'btn-default';
+        this.className = 'btn-primary';
         this.innerHTML = 'Hide Violent Crime'
     }
 };
