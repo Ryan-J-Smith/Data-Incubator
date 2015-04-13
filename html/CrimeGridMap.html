@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Data Incubator - Ryan J. Smith</title>
+    <script type="text/javascript" src="js/d3/d3.v3.js"></script>
+    <script src='https://api.tiles.mapbox.com/mapbox.js/v2.1.7/mapbox.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox.js/v2.1.7/mapbox.css' rel='stylesheet' />
+    <style>
+        #map {
+            position: relative;
+            top: 0px;
+            bottom: 0px;
+            height: 700px;
+            width: 100%;
+            max-width: none;
+            min-width: 0px;
+        }
+    </style>
+</head>
+
+<xmp theme="cerulean" style="display;none;">
+
+# Binning Crime into Hex Bins
+
+In the previous plot we examined a dot map showing a subset of victim-based crimes (common assault, aggravated assault) committed in Baltimore during 2014.  While that example was a good initial visualization, it was less than ideal. Points are densely backed and it it difficult to see trends at a glance. To take a step toward better visualizing this data into a more useful format we will bin the data into hexagonal bins and visualize those bins. 
+
+I've divided the original data into groups: violent and non-violent.  The violent group contains instances of aggravated assault, common assault, and shootings. The non-violent group contains burglary, larceny and larceny from auto.  Other groups present in the original data were excluded. In this case I will use all of the data included in the file, consisting of crimes committed between Janurary 1, 2010 and February 21, 2015. The violent group included 70,347 records while the non-violent group included 128,112 records.
+
+**Generation of this plot required the use of Python, Pandas, QGIS, TileMill, Mapbox, Javascript, D3 and Leaflet.**
+
+## Demo
+
+In this map, two grids are present, one for non-violent crimes and one for violent crimes. The map has been set up so that each layer of grid cells may be toggled.
+
+#### Non-violent crimes
+Counts of non-violent crimes are indicated by cell colors varying linearly from **pale blue (15 to 34 incidents)** to **dark blue (105 or more incidents)**. Regions of high non-violent crime appear in a Northern-Southern strip in central Baltimore.  Thie strip corresponds to areas with a high density of shops, real estate with above-average property values and several main traffic routes for the city.  An additional cluster is present in Eastern Baltimore in a poorer region of the city.  This particular cluster seems to coincide with a cluster of violent crime. 
+
+#### Violent crimes
+Counts of violent crimes are indicated by cell colors varying  linearly from pale orange **(5 to 14 incidents)** to **dark orange (55 or more incidents)**. From this layer we can see that regions with high incidence rates of violent crime are located in 3 primary areas: a small patch in Eastern Baltimore, a more dispersed patch in Western Baltimore and a central patch near the harbor.  The Eastern and Western clusters correspond to areas with comparatively less economic development and typically lower household incomes. The central region corresponds to the downtown / Inner Harbor area which is a popular destination for tourists as well as Baltimore youths during warmer months.
+
+<div id='menu-ui' class="btn-group">
+    <button class="btn-primary" id ="nonviolentBtn">Show Non-Violent Crime</button>
+    <button class="btn-primary" id ="violentBtn">Show Violent Crime</button>
+</div> 
+<div class="row">
+<div class = "col-md-12">
+  <div id='map'></div>
+</div>
+</div>
+
+## Generating the Map
+
+#### Getting the Data
+
+Data was acquired from [Baltimore's Open Data portal](https://data.baltimorecity.gov/).  In this case data was downloaded as a .csv file manually from the website.  However I also wrote a script in Python to interface with the Socrata API and access the file of interest and generate a .json file in the event automated updating is needed.
+
+    import urllib2
+    import json
+
+    limit = 50000 # Number of results per request, default is 1000, max is 50000
+    maxOffset = 250000 # Max number of records to download
+    endpointURL = "https://data.baltimorecity.gov/resource/wsfq-mvij" # Where the data is located
+    dataFormat = ".json?" # Specify to request data as json
+
+    offset = 0 # Initialize offset to start at first record
+    allData = [] # Initialize data structure
+
+    # Loop over offsets until we get all the data (or so
+    while offset < maxOffset:
+        
+        requestURL = endpointURL + dataFormat + "&$limit=" + str(limit) + "&$offset=" + str(offset) # Construct request
+        req = urllib2.Request(requestURL) # Send request
+        resp = urllib2.urlopen(req).read() # Read response, should be a string  
+        
+        # Convert response (string) to json
+        jsonData = json.loads(resp)
+        
+        # Check number of records acquired this time
+        numRecords = len(jsonData)
+        
+        # Accumulate records, prepare for next request
+        if numRecords > 0: 
+            allData += jsonData
+            offset += limit
+            
+        # Break out of loop if we got all the records
+        if numRecords < limit: 
+            break 
+
+    # Save the data to an output file
+    with open('./data/baltCrime.json', 'w') as outputFile:
+        json.dump(allData,outputFile)
+
+
+#### Cleaning and Reformatting data
+
+After acquiring the data, Pandas was used to perform some basic cleaning and re-formatting of the data.  As an example the "coordinates" column that was in the original data contained latitude and longitude in the form of "(lat, lon)" stored as a string.  This column was stripped of unnecessary characters, split into two separate columns for latitude and longitude, then converted from strings to floats. Additionally, entries containing latitude and longitude values out of range or with values of NaN were removed. Finally, a categorical value column was created to hold integers corresponding to each of the crime types in the file.  This would enable easier selection of the appropriate records outside of Pandas. The final formatted data was exported as a .csv file.
+
+    # Import packages
+    import pandas as pd
+    import numpy as np
+
+    # Load the data using pandas
+    file = "./data/BaltimoreCrimeData.csv"
+    df = pd.read_csv(file,encoding='utf-8_sig') # Need correct encoding type
+
+    # Remove whitespace from columns
+    df.columns = map(lambda x: x.replace(" ",""), df.columns)
+
+    # Create function to format data as needed
+    def loc2float(x):
+        x = str(x)
+        for char in ['(',')',' ']: 
+            x = x.replace(char,'')
+        coords = map(float, x.split(','))
+        if len(coords)!= 2:
+            coords = np.nan
+        
+        return coords
+
+    # Apply function to location column, store to new column
+    coordsData = df['Location1'].map(loc2float)
+    df['Coords'] = coordsData
+
+    # Remove rows with NaN coordinates
+    idxVals = df['Coords'].apply(lambda x: isinstance(x,list))
+    df = df[idxVals]
+
+    # Separate coordinates into own Lat and Lon columns
+    df['Lat'], df['Lon'] = zip(*df['Coords'])
+    df.head(n=5)
+
+    # Drop unneeded columns
+    df.drop(['Location','Post','District','Neighborhood','Location1','TotalIncidents','Coords'],inplace=True,axis=1)
+
+    # Only keep data in certain geometric extent
+    minLat =39.2; maxLat = 39.4;
+    minLon = -76.75; maxLon = -76.5;
+    df = df[(df['Lat'] > minLat) & (df['Lat'] < maxLat)]
+    df = df[(df['Lon'] > minLon) & (df['Lon'] < maxLon)]
+
+    # Get types of crime
+    crimeTypes = pd.Series(df['Description'].unique())
+
+    # Add 'crime class' column
+    df['CrimeClass'] = pd.Series(np.zeros(len(df['Description'])), index=df.index)
+    cnt = 1;
+    for crime in crimeTypes:
+        df.loc[(df['Description'] == crime), 'CrimeClass'] = cnt
+        cnt += 1
+
+    # Export data to file
+    df.to_csv('./data/thinCrimeData.csv')
+
+#### Spatial Processing of Data
+
+The cleaned data was loaded as point data into QGIS, open-source GIS software. A hexagonal grid of polygons with center to center horizontal separation of 0.0015 decimal degrees and vertical separation of ~0.0018 decimal degrees was generated using the MMQGIS plugin. Queries were written to divide crime data was divided into separate layers corresponding to the violent and non-violent categories previously specified. Hexagonal grids were created for each layer and a QGIS built-in point-in-polygon procedure was used to identify the number of counts in each hexagonal bin.  These counts were appended as an attribute table associated with each layer.  The binned layers and tables were exported as ESRI shapefiles to prepare for visual styling.
+
+#### Visual Styling of Data
+
+The shapefiles containing the gridded crime counts were imported into TileMill.  TileMill is software for styling geometric map data and generating raster tiles for use on map servers. Separate blue and orange color gradients from [ColorBrewer](http://colorbrewer2.org/) were generated for coloring the non-violent and violent crime data, respectively.  Basic styling code was written in CartoCSS, a styling language for maps. A sample of this code for the non-violent crime data is below.
+
+    #nonviolentgrid {
+      line-color:#000;
+      line-width:0;
+      polygon-opacity:1;
+      polygon-fill:#ae8;
+      
+      [PNTCNT < 15] {polygon-opacity:0; line-width:0}
+      [PNTCNT >= 15] {polygon-opacity:0.5; polygon-fill: #eff3ff}
+      [PNTCNT >= 35] {polygon-opacity:0.5; polygon-fill: #c6dbef}
+      [PNTCNT >= 55] {polygon-opacity:0.51; polygon-fill: #9ecae1}
+      [PNTCNT >= 75] {polygon-opacity:0.5; polygon-fill: #6baed6}
+      [PNTCNT >= 85] {polygon-opacity:0.5; polygon-fill: #3182bd}
+      [PNTCNT >= 105] {polygon-opacity:0.5; polygon-fill: #08519c}
+    }
+
+After the layers were styled, the tiles for zoom layers 12 through 16 were generated and uploaded to [Mapbox](https://www.mapbox.com/) servers for hosting.
+
+#### Data Visualization
+
+The maps were visualized using JavaScript and Mapbox (Leaflet) libraries to generate a map element on the page and to show the appropriate gridded layers. The JavaScript code used to generate this map and provide responsive layer controls via the buttons is below. This code was largely adapted from the [Toggling Layers Example Code](https://www.mapbox.com/mapbox.js/example/v1.0.0/layers/) from Mapbox.
+
+    var mapid = 'ryanjsmith.lne9d2pj';
+    var vBtn = document.getElementById('violentBtn');
+    var nvBtn = document.getElementById('nonviolentBtn');
+
+    L.mapbox.accessToken = 'pk.eyJ1IjoicnlhbmpzbWl0aCIsImEiOiJGdUZ1VllrIn0.3CnpoqP4UtaQPRHvEzssgA';
+    var southWest = L.latLng(39.196, -76.728),
+        northEast = L.latLng(39.379, -76.525),
+        bounds = L.latLngBounds(southWest, northEast);
+
+
+    var map = L.mapbox.map('map', mapid, {
+        maxBounds: bounds,
+        maxZoom: 17,
+        minZoom: 12
+    });
+
+    var nvLayer = L.mapbox.tileLayer('ryanjsmith.nonViolentGrid');
+    var vLayer = L.mapbox.tileLayer('ryanjsmith.griddedCrime');
+
+    nvLayer.addTo(map);
+    nvLayer.setZIndex(2);
+    nvBtn.className = 'btn-default';
+    nvBtn.innerHTML = 'Hide Non-Violent Crime'
+
+    nvBtn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (this.className == 'btn-default') {
+            map.removeLayer(nvLayer);
+            this.className = 'btn-primary';
+            this.innerHTML = 'Show Non-Violent Crime'
+        } else {
+            map.addLayer(nvLayer);
+            nvLayer.setZIndex(2);
+            this.className = 'btn-default';
+            this.innerHTML = 'Hide Non-Violent Crime'
+        }
+    };
+
+    vBtn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (this.className == 'btn-default') {
+            map.removeLayer(vLayer);
+            this.className = 'btn-primary';
+            this.innerHTML = 'Show Violent Crime'
+        } else {
+            map.addLayer(vLayer);
+            vLayer.setZIndex(3);
+            this.className = 'btn-default';
+            this.innerHTML = 'Hide Violent Crime'
+        }
+    };
+
+---
+
+<div class="container">
+    <div class="row">
+        <span class="pull-left">
+        <span class="pull-right">By [Ryan J. Smith](http://www.ryanjsmith.me), 2015</span>
+    </div>
+</div>
+
+</xmp>
+
+<script src="js/strapdown/v/0.2/strapdown.js"></script>
+
+<script type="text/javascript">
+var mapid = 'ryanjsmith.lne9d2pj';
+var vBtn = document.getElementById('violentBtn');
+var nvBtn = document.getElementById('nonviolentBtn');
+
+L.mapbox.accessToken = 'pk.eyJ1IjoicnlhbmpzbWl0aCIsImEiOiJGdUZ1VllrIn0.3CnpoqP4UtaQPRHvEzssgA';
+var southWest = L.latLng(39.196, -76.728),
+    northEast = L.latLng(39.379, -76.525),
+    bounds = L.latLngBounds(southWest, northEast);
+
+
+var map = L.mapbox.map('map', mapid, {
+    maxBounds: bounds,
+    maxZoom: 17,
+    minZoom: 12
+});
+
+var nvLayer = L.mapbox.tileLayer('ryanjsmith.nonViolentGrid');
+var vLayer = L.mapbox.tileLayer('ryanjsmith.griddedCrime');
+
+
+nvLayer.addTo(map);
+nvLayer.setZIndex(2);
+nvBtn.className = 'btn-default';
+nvBtn.innerHTML = 'Hide Non-Violent Crime'
+
+nvBtn.onclick = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (this.className == 'btn-default') {
+        map.removeLayer(nvLayer);
+        this.className = 'btn-primary';
+        this.innerHTML = 'Show Non-Violent Crime'
+    } else {
+        map.addLayer(nvLayer);
+        nvLayer.setZIndex(2);
+        this.className = 'btn-default';
+        this.innerHTML = 'Hide Non-Violent Crime'
+    }
+};
+
+vBtn.onclick = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (this.className == 'btn-default') {
+        map.removeLayer(vLayer);
+        this.className = 'btn-primary';
+        this.innerHTML = 'Show Violent Crime'
+    } else {
+        map.addLayer(vLayer);
+        vLayer.setZIndex(3);
+        this.className = 'btn-default';
+        this.innerHTML = 'Hide Violent Crime'
+    }
+};
+
+
+</script>
+
+
+</html>
