@@ -53,7 +53,86 @@ I have performed basic loading and cleaning of the data iusing Python and pandas
 
 <div id="d3Code"></div>
 
-The chart itself was generated using D3 with help from a [helpful tutorial by Mike Bostock](http://bost.ocks.org/mike/bar/3/).
+While this chart is intended to provide a simple view into the types of data provided by the dataset, it is also meant to highlight the frustration that can come from reports such as these.  This chart aggregates the data over more than 4 years and summarizes an area with a population of over 600,000 people.  Additional visualizations and models are needed to really make this data more useful to individuals.
+
+## D3 Code
+
+The chart itself was generated using D3 with assistance from a [helpful tutorial by Mike Bostock](http://bost.ocks.org/mike/bar/3/). Here is the code used to generate the chart
+
+    var margin = {top: 50, right: 50, bottom: 50, left:150};
+    var width = 960 - margin.left - margin.right;
+    var height = 500 - margin.top - margin.bottom;
+    var maxCount = 60000;
+    //Define plot scales
+    var xScale = d3.scale.linear()
+        .range([0, width]);
+
+    var yScale = d3.scale.ordinal()
+        .rangeRoundBands([height, 0], .1);
+
+    var xAxis = d3.svg.axis()
+        .scale(xScale)
+        .orient("bottom")
+        .ticks(10);
+
+    var yAxis = d3.svg.axis()
+        .scale(yScale)
+        .orient("left");
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    //Load data
+    d3.tsv("../data/crimeCountData.tsv", function(error, data) {
+        xScale.domain([0, maxCount]);
+        yScale.domain(data.map(function(d) { return d.crime; }));
+
+        svg.append("g")
+            .attr("class", "y axis")
+            .call(yAxis)
+            .append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("y", 6)
+            .attr("dy", ".71em");
+
+        svg.append("g")
+            .attr("class", "x axis")
+            .attr("transform", "translate(0," + height + ")")
+            .call(xAxis)
+            .append("text")
+            .attr("x", xScale(maxCount/2))
+            .attr("y", 30)
+            .style("text-anchor", "end")
+            .text("Incidence Counts");
+
+        var bar = svg.selectAll(".bar")
+            .data(data)
+            .enter();
+            
+            bar.append("rect")
+            .attr("class","bar")
+            .attr("x", xScale(margin.left))
+            .attr("width", function(d) { return xScale(d.count); })
+            .attr("y", function(d) { return yScale(d.crime); })
+            .attr("height", yScale.rangeBand());
+            
+            bar.append("text")
+            .attr("class","barText")
+            .attr("x", function(d) { return xScale(d.count) + 5; })
+            .attr("y", function(d) { return yScale(d.crime) + yScale.rangeBand()/2; })
+            .attr("dy", ".35em")
+            .text(function(d) {return d.count;});
+
+    });
+
+    function type(d) {
+        d.count = +d.count;
+        return d;
+    }
 
 ---
 
